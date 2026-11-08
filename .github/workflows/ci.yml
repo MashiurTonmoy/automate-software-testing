@@ -1,6 +1,5 @@
 name: Frontend CI
 
-# 1. Trigger automatically on every push and pull request to the main branch
 on:
   push:
     branches:
@@ -9,7 +8,6 @@ on:
     branches:
       - main
 
-# Ensure previous runs for the same branch/PR are cancelled when a new commit is pushed
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -17,34 +15,43 @@ concurrency:
 jobs:
   build-and-test:
     name: Build & Test Frontend
-    # 2. Use latest stable Ubuntu runner
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     steps:
-      # Step 1: Check out the repository code
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      # Step 2: Set up Node.js LTS with npm caching for faster builds
       - name: Set up Node.js LTS
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 'lts/*'
           cache: 'npm'
 
-      # Step 3: Install dependencies cleanly using package-lock.json
       - name: Install dependencies
         run: npm ci
 
-      # Step 4: Run ESLint to check code quality
-      # NOTE: Requires "lint" script in package.json (see explanation)
       - name: Run ESLint
         run: npm run lint
 
-      # Step 5: Run automated Vitest test suite
       - name: Run automated tests
         run: npm test
 
-      # Step 6: Generate production build (TypeScript check + Vite bundle)
       - name: Generate production build
         run: npm run build
+
+# Stage	Topic	Priority
+# 1	Unit testing with Vitest	High
+# 2	Integration testing	High
+# 3	E2E testing with Playwright	High
+# 4	GitHub branch protection rules	High
+# 5	Pull Request status checks	High
+# 6	CI environment variables and secrets	Medium
+# 7	Test coverage and reporting	Medium
+# 8	CI caching and optimization	Medium
+
+# Package	Purpose
+# Vitest	Test runner
+# React Testing Library	Test React components
+# jest-dom	Extra DOM assertions
+# user-event	Simulate user interactions
+# jsdom	Simulate a browser DOM environment
