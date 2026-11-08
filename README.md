@@ -1,5 +1,13 @@
 # Salat Tracker (Daily Prayer Log & Calendar)
 
+[![Frontend CI](https://github.com/MashiurTonmoy/Salat_Tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/MashiurTonmoy/Salat_Tracker/actions/workflows/ci.yml)
+![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-CI%2FCD-2088FF?logo=github-actions&logoColor=white)
+![Vitest](https://img.shields.io/badge/Test_Automation-Vitest-6E9F18?logo=vitest&logoColor=white)
+![Deploy Automation](https://img.shields.io/badge/Deploy_Automation-Production_Build-success?logo=githubactions&logoColor=white)
+
+> 🚀 **Purpose: GitHub Actions & CI/CD Pipeline Automation**  
+> This repository is primarily configured to demonstrate modern **CI/CD pipelines**, **software test automation**, and **deploy/build automation** using **GitHub Actions**. Every push and pull request automatically triggers code quality checks (ESLint), automated unit & integration testing (Vitest + React Testing Library), and production build verification.
+
 A minimal, serene, and modern web application built with **React**, **TypeScript**, **Tailwind CSS**, and **Vite** for tracking the five daily Salat (prayers) and visualizing completion history on an Islamic-inspired monthly heatmap calendar.
 
 ---
@@ -58,6 +66,21 @@ npm test
 ```bash
 npm run build
 ```
+
+---
+
+## ⚙️ CI/CD Pipeline & Test Automation
+
+The repository includes a fully configured GitHub Actions workflow (`.github/workflows/ci.yml`) designed for continuous integration and automated deployment readiness:
+
+* **Triggers**: Automatically runs on all `push` and `pull_request` events targeting the `main` branch.
+* **Concurrency Control**: Automatically cancels outdated in-progress runs when new commits are pushed.
+* **Pipeline Stages**:
+  1. **Environment Setup**: Runs on `ubuntu-latest` with Node.js LTS and automatic dependency caching.
+  2. **Dependency Installation**: Uses `npm ci` for deterministic, clean installs via `package-lock.json`.
+  3. **Code Quality**: Runs `npm run lint` (ESLint) to enforce code standards.
+  4. **Software Test Automation**: Runs `npm test` (Vitest & React Testing Library) to execute unit and integration test suites.
+  5. **Deployment & Build Automation**: Runs `npm run build` (TypeScript compiler `tsc -b` + Vite production bundling) to ensure zero compilation or bundling errors before deployment.
 
 ---
 
