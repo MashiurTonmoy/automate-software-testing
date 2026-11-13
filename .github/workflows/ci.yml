@@ -4,25 +4,42 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - '.gitattributes'
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - '.gitattributes'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NODE_ENV: test
+  CI: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Job 1: Lint & TypeCheck — fast static quality gate
+# ─────────────────────────────────────────────────────────────────────────────
 jobs:
-  build-and-test:
-    name: Build & Test Frontend
-    runs-on: ubuntu-26.04
+  lint-and-typecheck:
+    name: Lint & TypeCheck
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Set up Node.js LTS
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
           cache: 'npm'
@@ -33,25 +50,89 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
-      - name: Run automated tests
-        run: npm test
+      - name: Run TypeScript type check
+        run: npm run typecheck
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Job 2: Unit & Integration Tests with Coverage
+# ─────────────────────────────────────────────────────────────────────────────
+  unit-and-integration-tests:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage report as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
+
+      - name: Write coverage summary to GitHub Job Summary
+        if: always()
+        run: |
+          echo "## 📊 Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| File | Statements | Branches | Functions | Lines |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----------|---------|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          node -e "
+            const fs = require('fs');
+            const summary = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+            const total = summary.total;
+            console.log('| **All files (total)** | ' + total.statements.pct + '% | ' + total.branches.pct + '% | ' + total.functions.pct + '% | ' + total.lines.pct + '% |');
+          " >> $GITHUB_STEP_SUMMARY
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Job 3: Production Build — verify the app compiles cleanly
+# ─────────────────────────────────────────────────────────────────────────────
+  production-build:
+    name: Production Build
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, unit-and-integration-tests]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Restore tsbuildinfo cache
+        uses: actions/cache@v4
+        with:
+          path: tsconfig.tsbuildinfo
+          key: tsbuildinfo-${{ runner.os }}-${{ hashFiles('src/**/*.ts', 'src/**/*.tsx', 'tsconfig.json') }}
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Generate production build
         run: npm run build
+        env:
+          NODE_ENV: production
 
-# Stage	Topic	Priority
-# 1	Unit testing with Vitest	High
-# 2	Integration testing	High
-# 3	E2E testing with Playwright	High
-# 4	GitHub branch protection rules	High
-# 5	Pull Request status checks	High
-# 6	CI environment variables and secrets	Medium
-# 7	Test coverage and reporting	Medium
-# 8	CI caching and optimization	Medium
-
-# Package	Purpose
-# Vitest	Test runner
-# React Testing Library	Test React components
-# jest-dom	Extra DOM assertions
-# user-event	Simulate user interactions
-# jsdom	Simulate a browser DOM environment
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-build
+          path: dist/
+          retention-days: 7
