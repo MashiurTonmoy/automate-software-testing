@@ -8,7 +8,7 @@ import { MonthlySummary } from './components/MonthlySummary';
 import { storageService } from './services/storageService';
 import { getDateCategory, getTodayKey } from './utils/dateUtils';
 import { PrayerCount, PrayerRecord } from './types';
-import { Sparkles, Calendar as CalendarIcon, Check } from 'lucide-react';
+import { Calendar as CalendarIcon, Check } from 'lucide-react';
 
 export const App: React.FC = () => {
   const todayKey = getTodayKey();
@@ -155,25 +155,6 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
-        {/* Welcome greeting banner */}
-        <div className="bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-850 rounded-3xl p-6 sm:p-7 text-white shadow-sm relative overflow-hidden">
-          <div className="relative z-10 max-w-2xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-xs text-emerald-100 text-xs font-medium mb-3">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
-              <span>Assalamu Alaikum, {userId || 'Friend'}</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Keep your connection steadfast.
-            </h2>
-            <p className="text-emerald-100/90 text-sm mt-1.5 leading-relaxed">
-              Track the five daily prayers: Fajr, Dhuhr, Asr, Maghrib, and Isha. Every submission directly illuminates your monthly contribution heatmap.
-            </p>
-          </div>
-          
-          {/* Subtle background decoration */}
-          <div className="absolute -right-10 -bottom-10 w-48 h-48 rounded-full bg-emerald-600/20 pointer-events-none blur-2xl" />
-        </div>
-
         {/* Monthly Summary Cards & Today's Progress */}
         <MonthlySummary
           currentYear={currentYear}
