@@ -1,0 +1,60 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String         @id @default(uuid())
+  username     String         @unique
+  email        String         @unique
+  passwordHash String         @map("password_hash")
+  timezone     String         @default("UTC")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  prayers       PrayerRecord[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model PrayerRecord {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  date      String   // YYYY-MM-DD format
+  count     Int      @default(0) // 0 to 5
+
+  // Individual prayer status
+  fajr      Boolean  @default(false)
+  dhuhr     Boolean  @default(false)
+  asr       Boolean  @default(false)
+  maghrib   Boolean  @default(false)
+  isha      Boolean  @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("prayer_records")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}

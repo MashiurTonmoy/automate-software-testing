@@ -1,4 +1,4 @@
-import { PrayerCount, PrayerRecord } from '../types';
+import { IndividualPrayers, PrayerCount, PrayerRecord } from '../types';
 
 const STORAGE_KEYS = {
   CURRENT_USER: 'salat_tracker_current_user',
@@ -7,12 +7,11 @@ const STORAGE_KEYS = {
 };
 
 /**
- * Storage service abstracting localStorage persistence.
- * Designed with a clean interface so it can be swapped with an API client later.
+ * Storage service abstracting persistence and local cache.
  */
 export const storageService = {
   /**
-   * Get the currently active user ID
+   * Get the currently active user ID / username
    */
   getCurrentUserId(): string | null {
     try {
@@ -32,7 +31,7 @@ export const storageService = {
 
     try {
       localStorage.setItem(STORAGE_KEYS.CURRENT_USER, cleanId);
-      
+
       // Update list of registered users
       const users = this.getKnownUsers();
       if (!users.includes(cleanId)) {
@@ -85,6 +84,22 @@ export const storageService = {
   },
 
   /**
+   * Set entire records map in storage
+   */
+  setAllRecords(userId: string, records: Record<string, PrayerRecord>): void {
+    const cleanId = userId.trim().toLowerCase();
+    if (!cleanId) return;
+    try {
+      localStorage.setItem(
+        `${STORAGE_KEYS.RECORDS_PREFIX}${cleanId}`,
+        JSON.stringify(records)
+      );
+    } catch (e) {
+      console.error('Failed to save records map to localStorage:', e);
+    }
+  },
+
+  /**
    * Get prayer record for a single date for a user
    */
   getRecord(userId: string, dateKey: string): PrayerRecord | null {
@@ -94,15 +109,31 @@ export const storageService = {
 
   /**
    * Save or update prayer record for a date for a user.
-   * Modifies the existing record in-place if one already exists for this date.
+   * Supports both total count and individual prayer breakdown.
    */
-  saveRecord(userId: string, dateKey: string, count: PrayerCount): PrayerRecord {
+  saveRecord(
+    userId: string,
+    dateKey: string,
+    count: PrayerCount,
+    prayers?: Partial<IndividualPrayers>
+  ): PrayerRecord {
     const cleanId = userId.trim().toLowerCase();
     const records = this.getAllRecords(userId);
+
+    const fajr = prayers?.fajr ?? (count >= 1);
+    const dhuhr = prayers?.dhuhr ?? (count >= 2);
+    const asr = prayers?.asr ?? (count >= 3);
+    const maghrib = prayers?.maghrib ?? (count >= 4);
+    const isha = prayers?.isha ?? (count >= 5);
 
     const updatedRecord: PrayerRecord = {
       date: dateKey,
       count,
+      fajr,
+      dhuhr,
+      asr,
+      maghrib,
+      isha,
       updatedAt: new Date().toISOString(),
     };
 

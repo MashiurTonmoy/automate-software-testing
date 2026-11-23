@@ -6,9 +6,10 @@ import { DailyPrayerSubmission } from './components/DailyPrayerSubmission';
 import { CalendarLegend } from './components/CalendarLegend';
 import { MonthlySummary } from './components/MonthlySummary';
 import { storageService } from './services/storageService';
+import { apiService } from './services/apiService';
 import { getDateCategory, getTodayKey } from './utils/dateUtils';
-import { PrayerCount, PrayerRecord } from './types';
-import { Calendar as CalendarIcon, Check } from 'lucide-react';
+import { IndividualPrayers, PrayerCount, PrayerRecord } from './types';
+import { Calendar as CalendarIcon, Check, Cloud, Database } from 'lucide-react';
 
 export const App: React.FC = () => {
   const todayKey = getTodayKey();
@@ -18,6 +19,7 @@ export const App: React.FC = () => {
   const [userId, setUserId] = useState<string | null>(() => storageService.getCurrentUserId());
   const [isSwitchingUser, setIsSwitchingUser] = useState<boolean>(false);
   const [knownUsers, setKnownUsers] = useState<string[]>(() => storageService.getKnownUsers());
+  const [isCloudSynced, setIsCloudSynced] = useState<boolean>(Boolean(apiService.getToken()));
 
   // Calendar View state
   const [currentYear, setCurrentYear] = useState<number>(initialDate.getFullYear());
@@ -39,16 +41,37 @@ export const App: React.FC = () => {
     }, 3000);
   };
 
-  // Load records whenever userId changes
+  const currentMonthStr = `${currentYear}-${String(currentMonthIndex + 1).padStart(2, '0')}`;
+
+  // Load records whenever userId or month changes
   useEffect(() => {
     if (userId) {
+      // 1. Instant local load
       const userRecords = storageService.getAllRecords(userId);
       setRecords(userRecords);
       setKnownUsers(storageService.getKnownUsers());
+
+      // 2. Background sync with backend if token exists
+      if (apiService.getToken()) {
+        setIsCloudSynced(true);
+        apiService.getMonthlyRecords(currentMonthStr).then((remoteRecords) => {
+          if (remoteRecords && Object.keys(remoteRecords).length > 0) {
+            setRecords((prev) => {
+              const merged = { ...prev, ...remoteRecords };
+              storageService.setAllRecords(userId, merged);
+              return merged;
+            });
+          }
+        }).catch(() => {
+          // Fall back gracefully to local storage
+        });
+      } else {
+        setIsCloudSynced(false);
+      }
     } else {
       setRecords({});
     }
-  }, [userId]);
+  }, [userId, currentMonthStr]);
 
   // Handle setting / changing User ID
   const handleSetUser = (newUserId: string) => {
@@ -56,6 +79,7 @@ export const App: React.FC = () => {
     setUserId(newUserId);
     setIsSwitchingUser(false);
     setKnownUsers(storageService.getKnownUsers());
+    setIsCloudSynced(Boolean(apiService.getToken()));
     showToast(`Welcome, ${newUserId}! Records loaded.`);
   };
 
@@ -96,14 +120,13 @@ export const App: React.FC = () => {
   const handleSelectDate = (dateKey: string) => {
     const category = getDateCategory(dateKey, todayKey);
     if (category === 'future') {
-      // Future dates cannot be selected
       return;
     }
     setSelectedDateKey(dateKey);
   };
 
   // Save or update today's record
-  const handleSaveTodayRecord = (count: PrayerCount) => {
+  const handleSaveTodayRecord = async (count: PrayerCount, prayers?: IndividualPrayers) => {
     if (!userId) return;
 
     // Strictly enforce that only today can be modified
@@ -112,11 +135,25 @@ export const App: React.FC = () => {
       return;
     }
 
-    const updated = storageService.saveRecord(userId, todayKey, count);
+    // Save locally for instant UI update
+    const updated = storageService.saveRecord(userId, todayKey, count, prayers);
     setRecords((prev) => ({
       ...prev,
       [todayKey]: updated,
     }));
+
+    // If backend authenticated, sync to Supabase
+    if (apiService.getToken()) {
+      const res = await apiService.savePrayer(todayKey, count, prayers);
+      if (res.success && res.record) {
+        setRecords((prev) => ({
+          ...prev,
+          [todayKey]: res.record!,
+        }));
+        showToast(`Today's record synced to cloud (${count} of 5 Salat).`);
+        return;
+      }
+    }
 
     showToast(`Today's record updated to ${count} of 5 Salat.`);
   };
@@ -153,6 +190,30 @@ export const App: React.FC = () => {
         onSwitchUser={handleOpenSwitchUser}
       />
 
+      {/* Cloud Sync Status Strip */}
+      {userId && (
+        <div className="bg-emerald-900/90 text-emerald-100 text-xs py-1.5 px-4">
+          <div className="max-w-6xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {isCloudSynced ? (
+                <>
+                  <Cloud className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Cloud Sync Active (PostgreSQL + Supabase)</span>
+                </>
+              ) : (
+                <>
+                  <Database className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Local Mode (Connect account for cloud sync)</span>
+                </>
+              )}
+            </div>
+            <span className="text-[11px] text-emerald-200/80">
+              5 Daily Prayers Tracking Enabled
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
         {/* Monthly Summary Cards & Today's Progress */}
@@ -164,7 +225,7 @@ export const App: React.FC = () => {
 
         {/* Main Grid: Calendar (Main Focus) & Daily Submission Sidebar/Panel */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Monthly Calendar — Main Focus (8 cols on desktop) */}
+          {/* Monthly Calendar — Main Focus (7 cols on desktop) */}
           <div className="lg:col-span-7 space-y-4">
             <MonthlyCalendar
               currentYear={currentYear}
@@ -198,10 +259,10 @@ export const App: React.FC = () => {
               </div>
               <ul className="space-y-1.5 text-stone-500 pl-4 list-disc text-[11px] leading-relaxed">
                 <li>
-                  <strong className="text-stone-700">Today:</strong> Submit and update your completed count (0–5) multiple times as you pray.
+                  <strong className="text-stone-700">Today:</strong> Click individual prayers (Fajr, Dhuhr, Asr, Maghrib, Isha) or pick a total count (0–5). Updates anytime in-place.
                 </li>
                 <li>
-                  <strong className="text-stone-700">Previous Days:</strong> View past prayer counts. Historical records are read-only to preserve authenticity.
+                  <strong className="text-stone-700">Previous Days:</strong> View past prayer breakdowns. Historical records are strictly read-only to preserve authentic history.
                 </li>
                 <li>
                   <strong className="text-stone-700">Future Days:</strong> Disabled until that day arrives.
@@ -219,7 +280,7 @@ export const App: React.FC = () => {
             Salat Tracker &bull; Minimal, peaceful daily prayer tracking
           </p>
           <p className="text-stone-400">
-            Records saved locally for User ID: <span className="font-medium text-stone-600">{userId || 'None'}</span>
+            Active User: <span className="font-medium text-stone-600">{userId || 'None'}</span>
           </p>
         </div>
       </footer>
